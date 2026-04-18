@@ -4,6 +4,8 @@
 -- Fully Featured, Animated, Glass UI with Sounds & Particle Systems
 -- Added Customizable Background Image & Fully Centered Text Layouts
 -- Includes Live Status Polling (Cache-Bypass) & Game Breaker Anti-Bypass
+-- Added Initial Loading Screen Sequence with Smooth Fade-Ins
+-- Fixed Button Size Sticking Bug Upon Authentication
 -- ==============================================================================
 
 local Players = game:GetService("Players")
@@ -65,6 +67,7 @@ local Config = {
         Click = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
         Slide = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), 
         Fade = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),  
+        IntroFade = TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), -- Added smooth 1-second intro fade
         ParticleSpeedMin = 5, 
         ParticleSpeedMax = 10
     }
@@ -418,6 +421,20 @@ StrokeGradient.Color = ColorSequence.new{
 StrokeGradient.Rotation = 45
 StrokeGradient.Parent = MainStroke
 
+-- LOADING TEXT (Added for intro feature)
+local LoadingLabel = Instance.new("TextLabel")
+LoadingLabel.Name = "LoadingLabel"
+LoadingLabel.Size = UDim2.new(1, 0, 1, 0)
+LoadingLabel.Position = UDim2.new(0, 0, 0, 0)
+LoadingLabel.BackgroundTransparency = 1
+LoadingLabel.Text = "LOADING..."
+LoadingLabel.TextColor3 = Config.Theme.TextLight
+LoadingLabel.TextTransparency = 1
+LoadingLabel.Font = Enum.Font.GothamMedium
+LoadingLabel.TextSize = 22
+LoadingLabel.ZIndex = 15
+LoadingLabel.Parent = MainFrame
+
 -- TITLE SECTION
 local TitleContainer = Instance.new("Frame")
 TitleContainer.Size = UDim2.new(1, 0, 0, 60)
@@ -639,7 +656,7 @@ local function CreateInteractiveButton(name, yPos, text, iconId, strokeColor)
         end
     end)
 
-    table.insert(ButtonsList, {Btn = Btn, Stroke = Stroke, Label = Label, Icon = Icon})
+    table.insert(ButtonsList, {Btn = Btn, Stroke = Stroke, Label = Label, Icon = Icon, OriginalY = yPos})
 
     return Btn, Stroke, Label, Icon
 end
@@ -674,6 +691,16 @@ local function PerformIntro()
     ParticleManager:Start()
     ParticleManager:SpawnBurst(20) 
 
+    -- ADDED: Loading Sequence Setup
+    mainTween.Completed:Wait() -- Wait for the main frame to finish sliding in
+    TweenService:Create(LoadingLabel, Config.Animations.Fade, {TextTransparency = 0}):Play()
+    
+    task.wait(1.5) -- Simulated loading wait time
+    
+    TweenService:Create(LoadingLabel, Config.Animations.Fade, {TextTransparency = 1}):Play()
+    task.wait(0.3) -- Small buffer between loading out and elements fading in
+
+    -- Fade everything else in smoothly (using the new 1-second IntroFade setting)
     local elementsToFade = {
         {Obj = MainStroke, Prop = "Transparency", Target = 0},
         {Obj = BackgroundImage, Prop = "ImageTransparency", Target = Config.UI.BackgroundImageTransparency},
@@ -694,7 +721,7 @@ local function PerformIntro()
     end
 
     for _, data in ipairs(elementsToFade) do
-        TweenService:Create(data.Obj, Config.Animations.Fade, {[data.Prop] = data.Target}):Play()
+        TweenService:Create(data.Obj, Config.Animations.IntroFade, {[data.Prop] = data.Target}):Play()
     end
 end
 
@@ -752,7 +779,14 @@ SubmitBtn.MouseButton1Click:Connect(function()
     isSubmitting = true
     
     if Box.Text == Config.KeySystem.CorrectKey then
-        NotificationManager:Notify("Key Authenticated Successfully!", 2, false)
+        
+        -- FIX: Force the button to immediately pop back up to normal size before running the auth visuals
+        TweenService:Create(SubmitBtn, Config.Animations.Click, {
+            Size = UDim2.new(0.9, 0, 0, 46),
+            Position = UDim2.new(0.05, 0, 0, 130)
+        }):Play()
+        
+        NotificationManager:Notify("Key Authenticated", 2, false)
         
         Box.TextEditable = false
         SubmitBtn.Active = false
